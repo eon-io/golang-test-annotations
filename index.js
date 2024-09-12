@@ -56,7 +56,7 @@ try {
                 const m = line.match(/^.*\s+(?<file>\S+\.go):(?<line>\d+): (?<message>.*\n)$/);
                 if (m?.groups) {
                     const file = m.groups.file && path.isAbsolute(m.groups.file) ? m.groups.file : path.join(packageName, m.groups.file);
-                    const ln = m.groups.line;
+                    const ln = Number(m.groups.line);
                     current = { file ,ln };
                     messages.push({ message: m.groups.message, location: current });
                 } else if (current) {
