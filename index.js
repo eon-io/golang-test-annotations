@@ -4,11 +4,7 @@ const fs = require('fs');
 
 
 try {
-	const regex = /(\s*[\w\d]+_test.go:\d+:)(.*?)(Test:\s+Test[\w\d]*?\S+)/gu; // Extracts only the failure from the logs (including whitespace)
-
-	const testResultsPath = core.getInput('test-results');
-	const customPackageName = core.getInput('package-name');
-	const workingDirectory = core.getInput('working-directory');
+	const testResultsPath = core.getInput('test-results');;
 
 	if (!fs.existsSync(testResultsPath)) {
 		core.warning(
@@ -26,45 +22,60 @@ try {
 			return;
 		}
 
-		let output = currentLine.Output;
-		if (typeof output === "undefined") {
-			return;
-		}
-		output = output.replace("\n", "%0A").replace("\r", "%0D")
 		// Strip github.com/owner/repo package from the path by default
 		let packageName = currentLine.Package.split("/").slice(3).join("/");
-		// If custom package is provided, strip custom package name from the path
-		if (customPackageName !== "") {
-			if (!currentLine.Package.startsWith(customPackageName)) {
-				core.warning(
-					`Expected ${currentLine.Package} to start with ${customPackageName} since "package-name" was provided.`
-				)
-			} else {
-				packageName = currentLine.Package.replace(customPackageName + "/", "")
-			}
-		}
-		if (workingDirectory !== "") {
-			packageName = workingDirectory + "/" + packageName
-		}
-		let newEntry = packageName + "/" + testName;
-		if (!obj.hasOwnProperty(newEntry)) {
-			obj[newEntry] = output;
-		} else {
-			obj[newEntry] += output;
-		}
+        let key = packageName + "/" + testName;
+        if (currentLine.Action === "output") {
+            let output = currentLine.Output;
+            if (typeof output === "undefined") {
+                return;
+            }
+            // output = output.replace("\n", "%0A").replace("\r", "%0D")
+            if (/^(=== RUN|\s*--- (FAIL|PASS): )/.test(output ?? '')) {
+                return;
+            }
+            obj[key] ??= { output: [] };
+            obj[key].output.push(output);
+        }
+        if (currentLine.Action === "fail") {
+            obj[key] ??= { output: [] };
+            obj[key].status = "FAIL";
+        }
 	});
 	lr.on('end', function () {
-		for (const [key, value] of Object.entries(obj)) {
-			if (value.includes("FAIL") && value.includes("_test.go")) {
-				var result;
-				while ((result = regex.exec(value)) !== null) {
-					const parts = result[0].split(":");
-					const file = key.split("/").slice(0, -2).join("/") + "/" + parts[0].trimStart();
-					const lineNumber = parts[1];
-					core.info(`::error file=${file},line=${lineNumber}::${result[0]}`);
-				}
+        const messages = [];
+		for (const [key, { output, status }] of Object.entries(obj)) {
+			if (status !== "FAIL") {
+                return;
 			}
+            let current
+            for (const line of output) {
+                // ^(?:.*\s+|\s*) - non-greedy match of any chars followed by a space or, a space.
+                // (?<file>\S+\.go):(?<line>\d+):  - gofile:line: followed by a space.
+                // (?<message>.\n)$ - all remaining message up to $.
+                const m = line.match(/^.*\s+(?<file>\S+\.go):(?<line>\d+): (?<message>.*\n)$/);
+                if (m?.groups) {
+                    const file = m.groups.file;
+                    const ln = Number(m.groups.line) - 1; // VSCode uses 0-based line numbering (internally)
+                    current = { file ,ln };
+                    messages.push({ message: m.groups.message, location: current });
+                } else if (current) {
+                    messages.push({ message: line, location: current });
+                }
+            }
 		}
+        const merged = new Map();
+        for (const { message, location } of messages) {
+            const loc = `${location?.file}:${location?.ln}`;
+            if (merged.has(loc)) {
+                merged.get(loc).message += '' + message;
+            } else {
+                merged.set(loc, { message, location });
+            }
+        }
+        [...merged.values()].forEach(({ message, location }) => {
+			core.info(`::error file=${location.file},line=${location.ln}::${message}`);
+        });
 	});
 } catch (error) {
 	core.setFailed(error.message);
