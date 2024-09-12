@@ -44,9 +44,9 @@ try {
 	});
 	lr.on('end', function () {
         const messages = [];
-		for (const [key, { output, status, packageName }] of Object.entries(obj)) {
+		for (const { output, status, packageName } of Object.values(obj)) {
 			if (status !== "FAIL") {
-                return;
+                continue;
 			}
             let current
             for (const line of output) {
@@ -74,7 +74,10 @@ try {
             }
         }
         [...merged.values()].forEach(({ message, location }) => {
-			core.info(`::error file=${location.file},line=${location.ln}::${message}`);
+			core.error(message, {
+				file: location.file,
+				line: location.ln
+			});
         });
 	});
 } catch (error) {
