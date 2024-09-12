@@ -1874,7 +1874,7 @@ var __webpack_exports__ = {};
 const core = __nccwpck_require__(186);
 const lineReader = __nccwpck_require__(752);
 const fs = __nccwpck_require__(147);
-
+const path = __nccwpck_require__(17);
 
 try {
 	const testResultsPath = core.getInput('test-results');;
@@ -1907,17 +1907,17 @@ try {
             if (/^(=== RUN|\s*--- (FAIL|PASS): )/.test(output ?? '')) {
                 return;
             }
-            obj[key] ??= { output: [] };
+            obj[key] ??= { output: [], packageName };
             obj[key].output.push(output);
         }
         if (currentLine.Action === "fail") {
-            obj[key] ??= { output: [] };
+            obj[key] ??= { output: [], packageName };
             obj[key].status = "FAIL";
         }
 	});
 	lr.on('end', function () {
         const messages = [];
-		for (const [key, { output, status }] of Object.entries(obj)) {
+		for (const [key, { output, status, packageName }] of Object.entries(obj)) {
 			if (status !== "FAIL") {
                 return;
 			}
@@ -1928,7 +1928,7 @@ try {
                 // (?<message>.\n)$ - all remaining message up to $.
                 const m = line.match(/^.*\s+(?<file>\S+\.go):(?<line>\d+): (?<message>.*\n)$/);
                 if (m?.groups) {
-                    const file = m.groups.file;
+                    const file = m.groups.file && path.isAbsolute(m.groups.file) ? m.groups.file : path.join(packageName, m.groups.file);
                     const ln = Number(m.groups.line) - 1; // VSCode uses 0-based line numbering (internally)
                     current = { file ,ln };
                     messages.push({ message: m.groups.message, location: current });
