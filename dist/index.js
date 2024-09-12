@@ -1929,8 +1929,8 @@ try {
                 const m = line.match(/^.*\s+(?<file>\S+\.go):(?<line>\d+): (?<message>.*\n)$/);
                 if (m?.groups) {
                     const file = m.groups.file && path.isAbsolute(m.groups.file) ? m.groups.file : path.join(packageName, m.groups.file);
-                    const ln = Number(m.groups.line);
-                    current = { file ,ln };
+                    const startLine = Number(m.groups.line);
+                    current = { file ,startLine };
                     messages.push({ message: m.groups.message, location: current });
                 } else if (current) {
                     messages.push({ message: line, location: current });
@@ -1939,7 +1939,7 @@ try {
 		}
         const merged = new Map();
         for (const { message, location } of messages) {
-            const loc = `${location?.file}:${location?.ln}`;
+            const loc = `${location?.file}:${location?.startLine}`;
             if (merged.has(loc)) {
                 merged.get(loc).message += '' + message;
             } else {
@@ -1947,10 +1947,7 @@ try {
             }
         }
         [...merged.values()].forEach(({ message, location }) => {
-			core.error(message, {
-				file: location.file,
-				line: location.ln
-			});
+			core.error(message, location);
         });
 	});
 } catch (error) {
