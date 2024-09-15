@@ -1936,6 +1936,18 @@ try {
                     messages.push({ message: line, location: current });
                 }
             }
+            if (!current) {
+                // parse golang stack trace
+                const testingStackFrame = /(\S+testing\.go):(\d+).*\n?/g;
+                const stackFrame = /(?<file>\S+\.go):(?<startLine>\d+).*\n?/g;
+                const lastStackFrame = output
+                    .join("")
+                    .replace(testingStackFrame, "")
+                    .match(stackFrame)
+                    ?.pop() ?? "";
+                const { file, startLine } = stackFrame.exec(lastStackFrame)?.groups ?? {};
+                messages.push({ message: output.join(""), location: { file: file && path.isAbsolute(file) ? file : path.join(packageName, file), startLine: Number(startLine) } });
+            }
 		}
         const merged = new Map();
         for (const { message, location } of messages) {
