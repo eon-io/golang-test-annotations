@@ -73,7 +73,9 @@ try {
                     .match(stackFrame)
                     ?.pop() ?? "";
                 const { file, startLine } = stackFrame.exec(lastStackFrame)?.groups ?? {};
-                messages.push({ message: output.join(""), location: { file: file && path.isAbsolute(file) ? file : path.join(packageName, file), startLine: Number(startLine) } });
+				if (file !== undefined && startLine !== undefined) {
+					messages.push({ message: output.join(""), location: { file: file && path.isAbsolute(file) ? file : path.join(packageName, file), startLine: Number(startLine) } });
+				}
             }
 		}
         const merged = new Map();
